@@ -1,4 +1,4 @@
-## Ticketing Project T2
+## EatsLog Backend
 ***
   <p align="center"></p>
     <p align="center">
@@ -16,8 +16,8 @@
 
 ## Description
 
-Ticketing Service Project T2 repository.
-Dev for study
+EatsLog Backend repository.
+
 
 
 ## Installation

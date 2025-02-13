@@ -10,9 +10,9 @@ import {
 import { UserAuth } from './user-auth.entity';
 
 export enum UserGender {
-  a = 'a',
-  b = 'b',
-  c = 'c',
+  male = 'male',
+  female = 'female',
+  none = 'none',
 }
 
 @Entity()
@@ -27,14 +27,26 @@ export class User {
   @Column()
   user_name: string;
 
-  @Column()
-  user_email: string;
+  @Column({ type: 'enum', enum: UserGender, default: UserGender.none })
+  user_gender: UserGender;
 
   @Column()
   user_born: Date;
 
-  @Column({ type: 'enum', enum: UserGender, default: UserGender.c })
-  user_gender: UserGender;
+  @Column()
+  user_email: string;
+
+  @Column({ default: null })
+  user_ci: string;
+
+  @Column({ default: null })
+  user_phone_number: string;
+
+  @Column({ default: false })
+  user_phone_sns_agree: boolean;
+
+  @Column({ default: null })
+  user_phone_sns_agree_date: Date;
 
   @CreateDateColumn()
   create_date: Date;

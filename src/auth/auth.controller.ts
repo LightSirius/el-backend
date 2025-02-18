@@ -23,6 +23,7 @@ export class AuthController {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     @Body() loginAuthDto: LoginAuthDto,
   ): Promise<{ access_token: string }> {
+    console.log(loginAuthDto);
     return this.authService.login(req.user);
   }
 

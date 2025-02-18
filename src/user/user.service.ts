@@ -1,15 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Connection, EntityManager, Repository } from 'typeorm';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { User } from './entities/user.entity';
-import { UserAuth } from './entities/user-auth.entity';
-import { DeleteResult } from 'typeorm/query-builder/result/DeleteResult';
 import { encodePassword } from '../utils/bcrypt';
+import { Connection, EntityManager, Repository } from 'typeorm';
+import { DeleteResult } from 'typeorm/query-builder/result/DeleteResult';
+
+import { User } from './entities/user.entity';
+import { AuthType, UserAuth } from './entities/user-auth.entity';
+
 import { UserRegistrationDto } from './dto/user-registration.dto';
 import { UserModifyPasswordDto } from './dto/user-modify-password.dto';
 import { UserModifyInfoDto } from './dto/user-modify-info.dto';
+import { UserAuthLocal } from './entities/user-auth-local.entity';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import {
+  CreateUserResponseDto,
+  Status as CreateUserStatus,
+} from './dto/create-user.response.dto';
 
 @Injectable()
 export class UserService {
@@ -18,36 +26,58 @@ export class UserService {
     private userRepository: Repository<User>,
     @InjectRepository(UserAuth)
     private authRepository: Repository<UserAuth>,
+    @InjectRepository(UserAuthLocal)
+    private authLocalRepository: Repository<UserAuthLocal>,
+
+    private readonly configService: ConfigService,
     private readonly entityManager: EntityManager,
     private readonly connection: Connection,
   ) {}
-  async create(createUserDto: CreateUserDto) {
-    createUserDto.userAuth.auth_password = await encodePassword(
-      createUserDto.userAuth.auth_password,
-    );
-
-    const queryRunner = await this.connection.createQueryRunner();
+  async create(createUserDto: CreateUserDto): Promise<CreateUserResponseDto> {
+    const queryRunner = this.connection.createQueryRunner();
 
     try {
       await queryRunner.connect();
       await queryRunner.startTransaction();
 
-      const userAuth = new UserAuth({
-        // auth_id: createUserDto.userAuth.auth_id,
-        // auth_password: createUserDto.userAuth.auth_password,
-        ...createUserDto.userAuth,
-      });
+      const userAuth = new UserAuth({ auth_type: createUserDto.auth_type });
 
-      const user = new User({
-        ...createUserDto,
-        userAuth,
-      });
-      if (await this.user_validate_id_duplicate(user.userAuth.auth_id)) {
-        if (await this.entityManager.save(user)) {
-          return user.user_uuid;
+      switch (userAuth.auth_type) {
+        case AuthType.Local: {
+          createUserDto.userAuthLocal.auth_password = await encodePassword(
+            createUserDto.userAuthLocal.auth_password,
+          );
+
+          const authLocal = new UserAuthLocal({
+            userAuth: userAuth,
+            ...createUserDto.userAuthLocal,
+          });
+          if (!(await this.authLocalDuplicateIdValidate(authLocal.auth_id))) {
+            Logger.error('user_create: local auth id duplicated');
+            return { status: CreateUserStatus.id_duplicated };
+          }
+          const user = new User({
+            ...createUserDto,
+            userAuth,
+          });
+
+          if (!(await queryRunner.manager.save(authLocal))) {
+            Logger.error('user_create: auth local not gen');
+            await queryRunner.rollbackTransaction();
+            return { status: CreateUserStatus.auth_not_created };
+          }
+          if (!(await queryRunner.manager.save(user))) {
+            Logger.error('user_create: user not gen');
+            await queryRunner.rollbackTransaction();
+            return { status: CreateUserStatus.user_not_created };
+          }
+
+          await queryRunner.commitTransaction();
+          return {
+            status: CreateUserStatus.created,
+            user_uuid: user.user_uuid,
+          };
         }
-      } else {
-        return 0;
       }
 
       await queryRunner.commitTransaction();
@@ -96,57 +126,19 @@ export class UserService {
     return this.authRepository.delete(user.userAuth.uuid);
   }
 
-  async authFindUser(auth_id: string): Promise<User> {
-    return this.userRepository.findOne({
+  async authLocalDuplicateIdValidate(auth_id: string): Promise<boolean> {
+    const authLocal = await this.authLocalRepository.findOneBy({
+      auth_id: auth_id,
+    });
+    return !authLocal;
+  }
+
+  async authFindLocalToId(auth_id: string): Promise<UserAuthLocal> {
+    return this.authLocalRepository.findOne({
       relations: { userAuth: true },
       where: {
-        userAuth: {
-          auth_id: auth_id,
-        },
+        auth_id: auth_id,
       },
     });
-  }
-
-  async user_validate_id_duplicate(auth_id: string): Promise<boolean> {
-    const user = await this.authFindUser(auth_id);
-    return !user;
-  }
-
-  async user_registration(userRegistrationDto: UserRegistrationDto) {
-    return await this.create({
-      userAuth: {
-        auth_id: userRegistrationDto.auth_id,
-        auth_password: userRegistrationDto.auth_password,
-      },
-      ...userRegistrationDto,
-    });
-  }
-
-  async user_modify_info(
-    userModifyInfoDto: UserModifyInfoDto,
-    guard: { uuid: string },
-  ) {
-    const user = await this.userRepository.findOneBy({ user_uuid: guard.uuid });
-    user.user_email = userModifyInfoDto.user_email
-      ? userModifyInfoDto.user_email
-      : user.user_email;
-    user.user_born = userModifyInfoDto.user_born
-      ? userModifyInfoDto.user_born
-      : user.user_born;
-
-    return await this.entityManager.save(user);
-  }
-
-  async user_modify_password(
-    userModifyPasswordDto: UserModifyPasswordDto,
-    guard: { uuid: string },
-  ) {
-    const user = await this.findOneWithAuth(guard.uuid);
-
-    user.userAuth.auth_password = await encodePassword(
-      userModifyPasswordDto.auth_password,
-    );
-
-    return await this.entityManager.save(user);
   }
 }

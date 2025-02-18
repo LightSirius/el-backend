@@ -3,6 +3,7 @@ import { UserService } from '../user/user.service';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '../user/entities/user.entity';
 import { comparePassword } from '../utils/bcrypt';
+import { UserAuth } from '../user/entities/user-auth.entity';
 
 @Injectable()
 export class AuthService {
@@ -11,15 +12,13 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async validateUser(auth_id: string, auth_password: string): Promise<any> {
-    const user = await this.userService.authFindUser(auth_id);
-    if (
-      user &&
-      (await comparePassword(auth_password, user.userAuth.auth_password))
-    ) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { userAuth, ...result } = user;
-      return result;
+  async validateLocal(
+    auth_id: string,
+    auth_password: string,
+  ): Promise<UserAuth | null> {
+    const auth = await this.userService.authFindLocalToId(auth_id);
+    if (auth && (await comparePassword(auth_password, auth.auth_password))) {
+      return auth.userAuth;
     }
     return null;
   }

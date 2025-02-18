@@ -52,39 +52,4 @@ export class UserController {
   async remove(@Param('user_uuid') user_uuid: string): Promise<DeleteResult> {
     return this.userService.remove(user_uuid);
   }
-
-  @Post('validate/id')
-  async user_validate_id_duplicate(
-    @Body('auth_id') auth_id: string,
-  ): Promise<boolean> {
-    return await this.userService.user_validate_id_duplicate(auth_id);
-  }
-
-  @Post('registration')
-  async user_registration(@Body() userRegistrationDto: UserRegistrationDto) {
-    return this.userService.user_registration(userRegistrationDto);
-  }
-
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @Post('modify/info')
-  async user_modify_info(
-    @Body() userModifyInfoDto: UserModifyInfoDto,
-    @Request() guard,
-  ) {
-    return this.userService.user_modify_info(userModifyInfoDto, guard.user);
-  }
-
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @Post('modify/password')
-  async user_modify_password(
-    @Body() userModifyPasswordDto: UserModifyPasswordDto,
-    @Request() guard,
-  ) {
-    return await this.userService.user_modify_password(
-      userModifyPasswordDto,
-      guard.user,
-    );
-  }
 }

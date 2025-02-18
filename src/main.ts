@@ -8,8 +8,8 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe());
 
   const swagger_config = new DocumentBuilder()
-    .setTitle('T2 Project API')
-    .setDescription('T2 Backend API List')
+    .setTitle('EL Backend API')
+    .setDescription('EL Backend API List')
     .setVersion('0.0.1')
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'Token' })
     .build();
